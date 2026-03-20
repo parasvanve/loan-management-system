@@ -3,32 +3,44 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { successResponse, errorResponse } = require("../utils/helpers");
 
-const createToken = (user) =>
-  jwt.sign(
-      {
-        id: user.id,
-        role: user.role,
-        email: user.email
-      },
+const createToken = (user) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is missing");
+  }
+
+  return jwt.sign(
+    {
+      id: user.id,
+      role: user.role
+    },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
+};
 
 const register = async (req, res) => {
   try {
-    const { name, email, password, role, adminKey } = req.body;
+    let { name, email, password, role, adminKey } = req.body;
+
+    name = name?.trim();
+    email = email?.trim();
 
     const existingUser = await User.findByEmail(email);
     if (existingUser) {
       return errorResponse(res, "User already exists with this email.", 409);
     }
 
-    const assignedRole =
-      role === "ADMIN" && adminKey && adminKey === process.env.ADMIN_REGISTRATION_KEY
-        ? "ADMIN"
-        : "USER";
+    let assignedRole = "USER";
+    if (
+      role === "ADMIN" &&
+      adminKey &&
+      adminKey === process.env.ADMIN_REGISTRATION_KEY
+    ) {
+      assignedRole = "ADMIN";
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
     const user = await User.create({
       name,
       email,
@@ -53,20 +65,34 @@ const register = async (req, res) => {
       201
     );
   } catch (error) {
+    console.error(error);
+
+    if (error.code === "ER_DUP_ENTRY") {
+      return errorResponse(res, "Email already exists.", 409);
+    }
+
     return errorResponse(res, "Unable to register user.", 500);
   }
 };
 
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+
+    email = email?.trim();
+
     const user = await User.findByEmail(email);
 
     if (!user) {
       return errorResponse(res, "Invalid email or password.", 401);
     }
 
+    if (typeof password !== "string") {
+      return errorResponse(res, "Invalid password format.", 400);
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.password);
+
     if (!isPasswordValid) {
       return errorResponse(res, "Invalid email or password.", 401);
     }
@@ -83,6 +109,7 @@ const login = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error(error);
     return errorResponse(res, "Unable to login.", 500);
   }
 };

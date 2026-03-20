@@ -1,4 +1,15 @@
+const MAX_EMI_RATIO = 0.4;
+const MAX_AMOUNT_RATIO = 24;
+
 const getDecision = ({ risk, income, amount, emi }) => {
+
+  if (income <= 0) {
+    return {
+      status: "REJECTED",
+      reason: "Invalid income provided."
+    };
+  }
+
   if (risk === "LOW") {
     return {
       status: "APPROVED",
@@ -7,10 +18,13 @@ const getDecision = ({ risk, income, amount, emi }) => {
   }
 
   if (risk === "MEDIUM") {
-    const emiToIncomeRatio = emi / income;
-    const amountToIncomeRatio = amount / income;
+    const emiToIncomeRatio = Number((emi / income).toFixed(2));
+    const amountToIncomeRatio = Number((amount / income).toFixed(2));
 
-    if (emiToIncomeRatio <= 0.4 && amountToIncomeRatio <= 24) {
+    if (
+      emiToIncomeRatio <= MAX_EMI_RATIO &&
+      amountToIncomeRatio <= MAX_AMOUNT_RATIO
+    ) {
       return {
         status: "APPROVED",
         reason: "Medium-risk borrower cleared affordability checks."
